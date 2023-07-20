@@ -38,6 +38,7 @@ def check_deps():
         sys.exit(1)
 
     try:
+        import copy
         import oyaml
         import websockets
         import arrow
