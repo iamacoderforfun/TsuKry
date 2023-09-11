@@ -13,24 +13,9 @@ __all__ = [
     # Navigation
     "ooc_cmd_hub",
     # Saving/loading
-    "ooc_cmd_save_hub",
-    "ooc_cmd_load_hub",
-    "ooc_cmd_overlay_hub",
-    "ooc_cmd_list_hubs",
-    "ooc_cmd_clear_hub",
-    "ooc_cmd_rename_hub",
+
     # Area Creation system
-    "ooc_cmd_area_create",
-    "ooc_cmd_area_remove",
-    "ooc_cmd_area_rename",
-    "ooc_cmd_area_swap",
-    "ooc_cmd_area_switch",
-    "ooc_cmd_area_pref",
-    "ooc_cmd_area_move_delay",
-    "ooc_cmd_hub_move_delay",
-    "ooc_cmd_toggle_replace_music",
-    "ooc_cmd_arup_enable",
-    "ooc_cmd_arup_disable",
+
     "ooc_cmd_toggle_getareas",
     "ooc_cmd_toggle_spectate",
     "ooc_cmd_toggle_passing_ic",
@@ -41,8 +26,6 @@ __all__ = [
     "ooc_cmd_follow",
     "ooc_cmd_unfollow",
     "ooc_cmd_info",
-    "ooc_cmd_gm",
-    "ooc_cmd_ungm",
     "ooc_cmd_broadcast",
     "ooc_cmd_clear_broadcast",
     "ooc_cmd_hpset",
@@ -321,7 +304,7 @@ def ooc_cmd_area_remove(client, arg):
             "Invalid number of arguments. Use /area_remove <aid>.")
 
 
-@mod_only(area_owners=True)
+@mod_only(hub_owners=True)
 def ooc_cmd_area_rename(client, arg):
     """
     Rename the area to <name>. The area is the one you're currently in
