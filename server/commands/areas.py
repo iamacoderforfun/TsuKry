@@ -40,10 +40,6 @@ __all__ = [
     "ooc_cmd_desc",
     "ooc_cmd_edit_ambience",
     "ooc_cmd_lights",
-    "ooc_cmd_area_lock",
-    "ooc_cmd_area_unlock",
-    "ooc_cmd_area_spectate",
-    "ooc_cmd_area_unlock",
     "ooc_cmd_delay",
     "ooc_cmd_allow_iniswap",
     "ooc_cmd_force_nonint_pres",
@@ -353,12 +349,6 @@ def ooc_cmd_area_kick(client, arg):
             c
             for c in client.area.clients
         ]
-    # Kick everyone in hub
-    elif args[0] == "***":
-        targets = [
-            c
-            for c in client.area.area_manager.clients
-        ]
     else:
         # Try to find by char name first
         targets = client.server.client_manager.get_targets(
@@ -404,9 +394,10 @@ def ooc_cmd_area_kick(client, arg):
                     not client.is_mod
                     and client not in client.area.area_manager.owners
                     and client not in area.owners
+                    and area.locked
                 ):
                     raise ArgumentError(
-                        "You can't kick someone to an area you don't own as a CM!"
+                        "You can't kick someone to a locked area you don't own as a CM!"
                     )
             target_pos = ""
             old_area = c.area
@@ -663,7 +654,7 @@ def ooc_cmd_peek(client, arg):
         raise
 
 
-@mod_only(area_owners=True)
+@mod_only()
 def ooc_cmd_max_players(client, arg):
     """
     Set a max amount of players for current area between -1 and 99.
@@ -788,48 +779,6 @@ def ooc_cmd_lights(client, arg):
     client.send_ooc(f"This area is {stat} dark.")
 
 
-def ooc_cmd_area_lock(client, arg):
-    """
-    Prevent users from joining the current area.
-    Usage: /area_lock
-    """
-    if not client.area.locking_allowed:
-        client.send_ooc('Area locking is disabled in this area.')
-    elif client.area.is_locked == client.area.Locked.LOCKED:
-        client.send_ooc('Area is already locked.')
-    elif client in client.area.owners or client.is_mod:
-        client.area.lock()
-    else:
-        raise ClientError('Only CM can lock the area.')
-
-def ooc_cmd_area_unlock(client, arg):
-    """
-    Allow anyone to freely join the current area.
-    Usage: /area_unlock
-    """
-    if client.area.is_locked == client.area.Locked.FREE:
-        raise ClientError('Area is already unlocked.')
-    elif client in client.area.owners or client.is_mod:
-        client.area.unlock()
-        client.send_ooc('Area is unlocked.')
-    else:
-        raise ClientError('Only CM can unlock area.')
-
-def ooc_cmd_area_spectate(client, arg):
-    """
-    Allow users to join the current area, but only as spectators.
-    Usage: /area_spectate
-    """
-    if not client.area.locking_allowed:
-        client.send_ooc('Area locking is disabled in this area.')
-    elif client.area.is_locked == client.area.Locked.SPECTATABLE:
-        client.send_ooc('Area is already spectatable.')
-    elif client in client.area.owners or client.is_mod:
-        client.area.spectator()
-    else:
-        raise ClientError('Only CM can make the area spectatable.')
-
-
 @mod_only()
 def ooc_cmd_delay(client, arg):
     """
@@ -841,7 +790,7 @@ def ooc_cmd_delay(client, arg):
     else:
         client.area.next_message_delay = int(arg)
 
-    database.log_room('delay', client, client.area, message=client.area.next_message_delay)
+    database.log_area('delay', client, client.area, message=client.area.next_message_delay)
 
 
 @mod_only()
@@ -855,7 +804,7 @@ def ooc_cmd_allow_iniswap(client, arg):
     client.area.iniswap_allowed = not client.area.iniswap_allowed
     answer = 'allowed' if client.area.iniswap_allowed else 'forbidden'
     client.send_ooc(f'Iniswap is {answer}.')
-    database.log_room('iniswap', client, client.area, message=client.area.iniswap_allowed)
+    database.log_area('iniswap', client, client.area, message=client.area.iniswap_allowed)
 
 @mod_only(area_owners=True)
 def ooc_cmd_force_nonint_pres(client, arg):
@@ -869,5 +818,5 @@ def ooc_cmd_force_nonint_pres(client, arg):
     client.area.broadcast_ooc(
         '{} [{}] has set pres in the area to be {}.'.format(
             client.char_name, client.id, answer))
-    database.log_room('force_nonint_pres', client, client.area, message=client.area.non_int_pres_only)
+    database.log_area('force_nonint_pres', client, client.area, message=client.area.non_int_pres_only)
 
