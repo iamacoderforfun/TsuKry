@@ -565,7 +565,7 @@ def ooc_cmd_knock(client, arg):
     except (AreaError, ClientError):
         raise
 
-
+@mod_only()
 def ooc_cmd_peek(client, arg):
     """
     Peek into an area to see if there's people in it.
