@@ -1,29 +1,11 @@
-# KFO-Server, an Attorney Online server
-#
-# Copyright (C) 2020 Crystalwarrior <varsash@gmail.com>
-#
-# Derivative of tsuserver3, an Attorney Online server. Copyright (C) 2016 argoneus <argoneuscze@gmail.com>
-#
-# This program is free software: you can redistribute it and/or modify
-# it under the terms of the GNU Affero General Public License as
-# published by the Free Software Foundation, either version 3 of the
-# License, or (at your option) any later version.
-#
-# This program is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-# GNU Affero General Public License for more details.
-#
-# You should have received a copy of the GNU Affero General Public License
-# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+import sys
+import logging
+import traceback
 
 import asyncio
 import aiohttp
 import stun
-import time
-from threading import Thread
 
-import logging
 
 logger = logging.getLogger("debug")
 stun_servers = [
@@ -39,18 +21,48 @@ class MasterServerClient:
 
     def __init__(self, server):
         self.server = server
+        self.interval = 60
 
     async def connect(self):
+        """
+        Connects to the server and sends server information periodically.
+
+        This function establishes a connection to the server using the aiohttp library's
+        ClientSession. It then enters a loop where it continuously sends server information
+        using the `send_server_info` method. If a `ClientError` occurs while sending the
+        information, it is logged as a connection error. Otherwise, if an unknown error
+        occurs, it is logged as an unknown connection error. In both cases, the function
+        sleeps for 5 seconds before retrying. Finally, the function sleeps for 60 seconds
+        before sending the next server information.
+
+        Parameters:
+            self: The instance of the class.
+
+        Returns:
+            None
+        """
         async with aiohttp.ClientSession() as http:
             while True:
                 try:
                     await self.send_server_info(http)
                 except aiohttp.ClientError:
-                    logger.exception('Connection error occurred.')
+                    # Master server is down or unreachable, may be temporary so log it as a warning
+                    logger.warning('Failed to connect to the master server')
+                except Exception as err:
+                    # Unknown error occurred, log it as a hard error with full exception information
+                    exc_type, exc_value, exc_traceback = sys.exc_info()
+                    logger.error("Uncaught exception while advertising server to masterserver")
+                    traceback.print_exception(exc_type, exc_value, exc_traceback)
                 finally:
-                    await asyncio.sleep(60)
+                    await asyncio.sleep(self.interval)
 
     def get_my_ip(self):
+        """
+        Get the external IP address using STUN servers.
+
+        Returns:
+            str: The external IP address.
+        """
         for stun_ip, stun_port in stun_servers:
             nat_type, external_ip, _external_port = \
                 stun.get_ip_info(stun_host=stun_ip, stun_port=stun_port)
@@ -58,6 +70,16 @@ class MasterServerClient:
                 return external_ip
 
     async def send_server_info(self, http: aiohttp.ClientSession):
+        """
+        Send server information to the specified HTTP client session.
+        Usually being the master server.
+
+        Parameters:
+            http (aiohttp.ClientSession): The aiohttp client to send the server information to.
+
+        Returns:
+            None
+        """
         loop = asyncio.get_event_loop()
         cfg = self.server.config
         body = {}
@@ -93,6 +115,6 @@ class MasterServerClient:
             try:
                 res.raise_for_status()
             except aiohttp.ClientResponseError as err:
-                logging.error(f"Got status={err.status} advertising {body}: {err_body}")
+                logging.error("Got status=%s advertising %s: %s", err.status, body, err_body)
 
-        logger.debug(f'Heartbeat to {API_BASE_URL}/servers')
+        logger.debug('Heartbeat to %s/servers', API_BASE_URL)

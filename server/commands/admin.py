@@ -111,7 +111,9 @@ def ooc_cmd_kick(client, arg):
     elif arg[0] == "*":
         targets = [c for c in client.area.clients if c != client]
     elif arg[0] == "**":
-        targets = [c for c in client.server.client_manager.clients if c != client]
+        #targets = [c for c in client.server.client_manager.clients if c != client]
+        client.send_ooc("Do not try to kick the whole server/hub please!")
+        return
     else:
         targets = None
 
@@ -305,6 +307,89 @@ def kickban(client, arg, ban_hdid):
     client.server.webhooks.ban(
         ipid, ban_id, reason, client, hdid, char, unban_date)
 
+@mod_only()
+def _convert_ipid_to_int(value):
+    try:
+        return int(value)
+    except ValueError:
+        raise ClientError(f'{value} does not look like a valid IPID.')
+
+def _find_area(client, area_name):
+    try:
+        return client.server.area_manager.get_area_by_id(int(area_name))
+    except:
+        try:
+            return client.server.area_manager.get_area_by_name(area_name)
+        except ValueError:
+            raise ArgumentError('Area ID must be a name or a number.')
+
+@mod_only()
+def ooc_cmd_areacurse(client, arg):
+    """
+    Ban a player from all areas except one, such that when they connect, they
+    will be placed in a specified area and can't switch areas unless forcefully done
+    by a moderator.
+
+    To unban, use the /unban command.
+    To add more IPIDs/HDIDs, use the /ban command as usual.
+
+    Usage: /area_curse <ipid> <area_name> "reason" ["<N> <minute|hour|day|week|month>(s)|perma"]
+    """
+    args = shlex.split(arg)
+    default_ban_duration = client.server.config['default_ban_duration']
+
+    if len(args) < 3:
+        raise ArgumentError('Not enough arguments.')
+    else:
+        ipid = _convert_ipid_to_int(args[0])
+        target_area = _find_area(client, args[1])
+        reason = args[2]
+
+    if len(args) == 3:
+        ban_duration = parse(str(default_ban_duration))
+        unban_date = arrow.get().shift(seconds=ban_duration).datetime
+    elif len(args) == 4:
+        duration = args[3]
+        ban_duration = parse(str(duration))
+
+        if duration is None:
+            raise ArgumentError('Invalid ban duration.')
+        elif 'perma' in duration.lower():
+            unban_date = None
+        else:
+            if ban_duration is not None:
+                unban_date = arrow.get().shift(seconds=ban_duration).datetime
+            else:
+                raise ArgumentError(f'{duration} is an invalid ban duration')
+
+    else:
+        raise ArgumentError(f'Ambiguous input: {arg}\nPlease wrap your arguments '
+                            'in quotes.')
+
+    special_ban_data = json.dumps({
+        'ban_type': 'area_curse',
+        'target_area': target_area.id
+    })
+
+    ban_id = database.ban(ipid, reason, ban_type='ipid', banned_by=client,
+                          unban_date=unban_date, special_ban_data=special_ban_data)
+
+    targets = client.server.client_manager.get_targets(
+        client, TargetType.IPID, ipid, False)
+
+    for c in targets:
+        c.send_ooc('You are now bound to this area.')
+        c.area_curse = target_area.id
+        c.area_curse_info = database.find_ban(ban_id=ban_id)
+        try:
+            c.change_area(target_area)
+        except ClientError:
+            pass
+        database.log_misc('area_curse', client, target=c, data={'ban_id': ban_id, 'reason': reason})
+    if targets:
+        client.send_ooc(f'{len(targets)} clients were area cursed.')
+    client.send_ooc(f'{ipid} was area cursed. Ban ID: {ban_id}')
+
 
 @mod_only()
 def ooc_cmd_unban(client, arg):
@@ -411,6 +496,7 @@ def ooc_cmd_login(client, arg):
 
     client.area.broadcast_evidence_list()
     client.send_ooc("Logged in as a moderator.")
+    #client.server.webhooks.login(client, login_name)
     database.log_misc("login", client, data={"profile": login_name})
 
 
